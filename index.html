@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ElectronHub Image Generation Tool</title>
+  <title>ElectronHub Image Tool</title>
 
   <style>
     body {
@@ -241,6 +241,8 @@
   <label>Model</label>
   <select id="model"></select>
 
+  <div class="hint" id="modelHint"></div>
+
   <label for="image-ratios">Select Image Size</label>
   <select name="image-ratios" id="image-ratios">
     <option value="1024x1024" selected>1:1 - 1024x1024</option>
@@ -253,19 +255,20 @@
   <label>Prompt</label>
   <textarea id="prompt" placeholder="Describe the image you want generated or edited..."></textarea>
 
-  <label>Optional Reference Image</label>
-  <div class="hint">
-    Leave empty for text-to-image generation. Upload one image for image editing.
-    Edit-capable selected models are allowed. If the selected model is not edit-capable,
-    the tool falls back to <code>flux-1-kontext-pro</code>.
-  </div>
+  <div id="referenceSection" style="display: none;">
+    <label>Optional Reference Image</label>
+    <div class="hint">
+      This selected model supports reference-image editing using
+      <code>/v1/images/edits</code>. Upload one image to edit it with your prompt.
+    </div>
 
-  <div id="uploadList">
-    <div class="upload-row">
-      <input id="referenceImage" type="file" accept="image/*" />
-      <div class="preview">
-        <button class="preview-remove-btn" type="button" aria-label="Remove reference image">×</button>
-        <div class="placeholder">Preview</div>
+    <div id="uploadList">
+      <div class="upload-row">
+        <input id="referenceImage" type="file" accept="image/*" />
+        <div class="preview">
+          <button class="preview-remove-btn" type="button" aria-label="Remove reference image">×</button>
+          <div class="placeholder">Preview</div>
+        </div>
       </div>
     </div>
   </div>
@@ -287,75 +290,198 @@
   <pre id="trace"></pre>
 
   <script>
-    const ELECTRONHUB_GENERATION_ENDPOINT =
-      "https://api.electronhub.ai/v1/images/generations";
+    const API_BASE = "https://api.electronhub.ai";
+    const GENERATION_PATH = "/v1/images/generations";
+    const EDIT_PATH = "/v1/images/edits";
+    const GENERATION_ENDPOINT = API_BASE + GENERATION_PATH;
+    const EDIT_ENDPOINT = API_BASE + EDIT_PATH;
 
-    const ELECTRONHUB_EDIT_ENDPOINT =
-      "https://api.electronhub.ai/v1/images/edits";
+    const MODEL_RESPONSE = {
+      object: "list",
+      data: [
+        { name: "Stability: Stable Diffusion XL", id: "sdxl", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Stable Diffusion XL Turbo", id: "sdxl-turbo", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "ByteDance: Stable Diffusion XL Lightning", id: "sdxl-lightning", owned_by: "bytedance", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Stable Diffusion 3", id: "stable-diffusion-3", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Stable Diffusion 3 Medium", id: "stable-diffusion-3-2b", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Stable Diffusion 3.5 Large", id: "stable-diffusion-3.5-large", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Stable Diffusion 3.5 Turbo", id: "stable-diffusion-3.5-turbo", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: AAM XL Anime Mix v1.0", id: "sdxl-aamxl-anime-mix-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Amanatsu (Illustrious) v1.1", id: "sdxl-amanatsu-illustrious-v11", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Aungir T6AO45", id: "sdxl-aungir-t6ao45", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Animij v2", id: "sdxl-animij-v2", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Animij v5", id: "sdxl-animij-v5", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: ArliMix v1", id: "sdxl-arlimix-v1", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Aungir TestA", id: "sdxl-aungir-testa", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: AutismMix Confetti", id: "sdxl-autismmix-confetti", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: AutismMix Pony", id: "sdxl-autismmix-pony", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: BoleroMix (Illustrious) v2.90", id: "sdxl-boleromix-illustrious-v290", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: ComradeshipXL v1.4kc", id: "sdxl-comradeshipxl-v14kc", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Copycat (Illustrious) v4.0", id: "sdxl-copycat-illustrious-v40", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Copycat (Illustrious) v5.0", id: "sdxl-copycat-illustrious-v50", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Halcyon v1.9", id: "sdxl-halcyon-v19", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: IkaStrious v1.42 Stable", id: "sdxl-ikastrious-v142-stable", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: IkaStriousXL v9.5", id: "sdxl-ikastriousxl-v95", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Illustrij v1.0", id: "sdxl-illustrij-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Illustrij v1.7", id: "sdxl-illustrij-v17", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Illustrious BlackMagic v3.0", id: "sdxl-illustrious-blackmagic-v30", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Illustrious PencilXL v3.20", id: "sdxl-illustrious-pencilxl-v320", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: IllustriousXL Smoothft SOLID", id: "sdxl-illustriousxl-smoothft-solid", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: IllustriousXL Mmmix v8.0", id: "sdxl-illustriousxl-mmmix-v80", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Ilustmix v4.0", id: "sdxl-ilustmix-v40", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Ilustmix v8.0", id: "sdxl-ilustmix-v80", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Janku Illustrious v2.1", id: "sdxl-janku-illustrious-v21", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Janku v4.0", id: "sdxl-janku-v40", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Kiwimix-XL v3", id: "sdxl-kiwimixxl-v3", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Lunarcherrymix v2.2 BaseIllustrxl20", id: "sdxl-lunarcherrymix-v22-baseillustrxl20", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Lunarcherrymix v2.3", id: "sdxl-lunarcherrymix-v23", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Miaomiao Harem v1.6G", id: "sdxl-miaomiao-harem-v16g", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Naixl Mmmix v4.5", id: "sdxl-naixl-mmmix-v45", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Naixl Mmmix v5.0", id: "sdxl-naixl-mmmix-v50", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nonnette v0.50", id: "sdxl-nonnette-v050", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Anime XL IL v10.0", id: "sdxl-novaanimexl-ilv100", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Anime XL IL v6.0", id: "sdxl-novaanimexl-ilv60", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Furry XL Illustrious v10.0", id: "sdxl-novafurryxl-illustrious-v100", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Orange XL v11.0", id: "sdxl-novaorangexl-v110", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Orange XL v9.0", id: "sdxl-novaorangexl-v90", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Unreal XL v5.0", id: "sdxl-novaunrealxl-v50", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Nova Unreal XL v7.0", id: "sdxl-novaunrealxl-v70", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Oblivious Mix v1.0", id: "sdxl-obliviousmix-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: One For All Anime (Illustrious)", id: "sdxl-oneforallanimew-il", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Persona Style (Illustrious)", id: "sdxl-personastyle-il", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Plant Milk Model Suite (Almond)", id: "sdxl-plantmilkmodelsuite-almond", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Plant Milk Model Suite (Coconut)", id: "sdxl-plantmilkmodelsuite-coconut", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Plant Milk Model Suite (Flax)", id: "sdxl-plantmilkmodelsuite-flax", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Plant Milk Model Suite (Oat)", id: "sdxl-plantmilkmodelsuite-oat", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Plant Milk Model Suite (Walnut)", id: "sdxl-plantmilkmodelsuite-walnut", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Praeclarus v1.0", id: "sdxl-praeclarus-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Praeclarus v2.0", id: "sdxl-praeclarus-v20", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Prefect Illustrious XL v1.0", id: "sdxl-prefectillustriousxl-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Prefect Illustrious XL v1.0", id: "sdxl-prefectiousxl-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Richy Rich Mixi XL v1.0", id: "sdxl-richyrichmixixl-v1", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Sakura Platinum v2025.03.09", id: "sdxl-sakuraplatinum-v20250309", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Shiitake Mix v2.0", id: "sdxl-shiitakemix-v20", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Silence Mix v4.0", id: "sdxl-silencemix-v40", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: SS Mix Illustrious v1.0", id: "sdxl-ssmixillustrious-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Sudachi XL Illustrious v1.0", id: "sdxl-sudachixlillustrious-v1", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Tanemo Mix v2.0", id: "sdxl-tanemomix-v2", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Tanemo Mix v6.0", id: "sdxl-tanemomix-v6", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: tN3 v8.0", id: "sdxl-tn3-v8", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Toonify Illustrious v1.0", id: "sdxl-toonify-illustrious", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Vixons Illustrious v1.4", id: "sdxl-vixonsillust-v14", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: waiCheapfastANI v1.0", id: "sdxl-waicheapfastani-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: wai Illustrious v1.30", id: "sdxl-wai-illustrious-v130", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: wai Illustrious v1.40", id: "sdxl-wai-illustrious-v140", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Anime Illustrious Best", id: "sdxl-zukianimeill-best", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Anime Illustrious v4.0", id: "sdxl-zukianimeill-v40", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Best Anime Mix v1.0", id: "sdxl-zukibestanimemix-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Cute Illustrious v6.0", id: "sdxl-zukicuteill-v60", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Cute Mix v1.0", id: "sdxl-zukicutemix-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Kawaii Mix v1.0", id: "sdxl-zukikawaimix-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: Zuki Soft Illustrious v1.0", id: "sdxl-zukisoftill-v10", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: TastyRice Magic on Paper (anime Guofeng Animation)", id: "sdxl-tastyrice-magic-on-paper-anime-guofeng-animation", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
+        { name: "Stability: TastyRice Lingyun Caijing (Zhencai World)", id: "sdxl-tastyrice-lingyun-caijing-zhencai-world", owned_by: "stabilityai", endpoints: [GENERATION_PATH] },
 
-    const ELECTRONHUB_MODELS = [
-      {
-        provider: "Stability / SDXL",
-        models: [
-          ["Stable Diffusion XL", "sdxl"],
-          ["Plant Milk Model Suite Walnut", "sdxl-plantmilkmodelsuite-walnut"],
-          ["wai Illustrious v1.40", "sdxl-wai-illustrious-v140"],
-          ["One For All Anime Illustrious", "sdxl-oneforallanimew-il"]
-        ]
-      },
-      {
-        provider: "BlackForestLabs / FLUX",
-        models: [
-          ["FLUX.2 klein 9B — generation/edit", "flux-2-klein-9b"],
-          ["Flux Lineart", "flux-lineart"]
-        ]
-      },
-      {
-        provider: "BlackForestLabs / Image Editing",
-        models: [
-          ["FLUX.1 Kontext dev — edit", "flux-1-kontext-dev"],
-          ["FLUX.1 Kontext pro — edit", "flux-1-kontext-pro"],
-          ["FLUX.1 Kontext max — edit", "flux-1-kontext-max"]
-        ]
-      },
-      {
-        provider: "Alibaba",
-        models: [
-          ["Z-Image Turbo", "z-image-turbo"],
-          ["Qwen Image", "qwen-image"],
-          ["Wan 2.2 Image", "wan-2.2-image"]
-        ]
-      },
-      {
-        provider: "OpenAI",
-        models: [
-          ["GPT Image 1 — generation/edit", "gpt-image-1"]
-        ]
-      }
-    ];
+        { name: "Fal: Animagine XL 3.1", id: "animagine-xl-3.1", owned_by: "falai", endpoints: [GENERATION_PATH] },
+        { name: "Fal: Animagine XL 4.0", id: "animagine-xl-4.0", owned_by: "falai", endpoints: [GENERATION_PATH] },
+        { name: "Fal: NoobAI XL", id: "noobai-xl", owned_by: "falai", endpoints: [GENERATION_PATH] },
 
-    const EDIT_CAPABLE_MODELS = new Set([
-      "flux-1-kontext-dev",
-      "flux-1-kontext-pro",
-      "flux-1-kontext-max",
-      "flux-2-klein-9b",
-      "gpt-image-1"
-    ]);
+        { name: "NovelAI: NAI Diffusion Furry V3", id: "nai-diffusion-furry-3", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+        { name: "NovelAI: NAI Diffusion Anime V3", id: "nai-diffusion-3", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+        { name: "NovelAI: NAI Diffusion V4 Full", id: "nai-diffusion-4-full", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+        { name: "NovelAI: NAI Diffusion V4 Curated", id: "nai-diffusion-4-curated-preview", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+        { name: "NovelAI: NAI Diffusion V4.5 Full", id: "nai-diffusion-4-5-full", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+        { name: "NovelAI: NAI Diffusion V4.5 Curated", id: "nai-diffusion-4-5-curated", owned_by: "novelai", endpoints: [GENERATION_PATH] },
+
+        { name: "HiDream: HiDream I1 Fast", id: "hidream-i1-fast", owned_by: "hidream-ai", endpoints: [GENERATION_PATH] },
+        { name: "HiDream: HiDream I1 Dev", id: "hidream-i1-dev", owned_by: "hidream-ai", endpoints: [GENERATION_PATH] },
+        { name: "HiDream: HiDream I1 Full", id: "hidream-i1-full", owned_by: "hidream-ai", endpoints: [GENERATION_PATH] },
+
+        { name: "BlackForestLabs: FLUX.1 [schnell]", id: "flux-schnell", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX.1 [dev]", id: "flux-dev", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX.1 [pro]", id: "flux-pro", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: Flux1.1 [pro]", id: "flux-1.1-pro", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX1.1 [pro] ultra", id: "flux-1.1-pro-ultra", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX1.1 [pro] ultra raw", id: "flux-1.1-pro-ultra-raw", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX.2 [klein] 4B", id: "flux-2-klein-4b", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX.2 [klein] 9B", id: "flux-2-klein-9b", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+        { name: "BlackForestLabs: FLUX.1 Krea [dev]", id: "flux-1-krea-dev", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH] },
+
+        { name: "BlackForestLabs: FLUX.1 Kontext [dev]", id: "flux-1-kontext-dev", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH, EDIT_PATH] },
+        { name: "BlackForestLabs: FLUX.1 Kontext [pro]", id: "flux-1-kontext-pro", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH, EDIT_PATH] },
+        { name: "BlackForestLabs: FLUX.1 Kontext [max]", id: "flux-1-kontext-max", owned_by: "blackforestlabs", endpoints: [GENERATION_PATH, EDIT_PATH] },
+
+        { name: "XLabs: Flux Realism", id: "flux-realism", owned_by: "xlabsai", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Half Illustration", id: "flux-half-illustration", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Black Light", id: "flux-black-light", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Minecraft Movie", id: "flux-minecraft-movie", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Dreamscape", id: "flux-dreamscape", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Lineart", id: "flux-lineart", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Flux Master", id: "flux-master", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+        { name: "Replicate: Phlux - Photorealism with style", id: "phlux", owned_by: "replicate", endpoints: [GENERATION_PATH] },
+
+        { name: "Alibaba: Wan 2.2 Image", id: "wan-2.2-image", owned_by: "alibaba", endpoints: [GENERATION_PATH] },
+        { name: "Alibaba: Qwen Image", id: "qwen-image", owned_by: "alibaba", endpoints: [GENERATION_PATH] },
+        { name: "Alibaba: Z-Image Turbo", id: "z-image-turbo", owned_by: "alibaba", endpoints: [GENERATION_PATH] },
+
+        { name: "OpenAI: GPT Image 1 Mini", id: "gpt-image-1-mini", owned_by: "openai", endpoints: [GENERATION_PATH] },
+        { name: "OpenAI: GPT Image 1", id: "gpt-image-1", owned_by: "openai", endpoints: [GENERATION_PATH] }
+      ]
+    };
+
+    const MODEL_CATALOG = MODEL_RESPONSE.data;
+
+    function getModelById(id) {
+      return MODEL_CATALOG.find((model) => model.id === id);
+    }
+
+    function modelSupportsEndpoint(modelId, endpointPath) {
+      const model = getModelById(modelId);
+      return !!model && model.endpoints.includes(endpointPath);
+    }
+
+    function getProviderGroupLabel(model) {
+      const prefix = model.name.includes(":")
+        ? model.name.split(":")[0]
+        : model.owned_by;
+
+      return `${prefix} (${model.owned_by})`;
+    }
+
+    function getEndpointBadge(model) {
+      const hasGeneration = model.endpoints.includes(GENERATION_PATH);
+      const hasEdit = model.endpoints.includes(EDIT_PATH);
+
+      if (hasGeneration && hasEdit) return "generation + edit";
+      if (hasEdit) return "edit";
+      return "generation";
+    }
 
     function populateModelDropdown() {
       const select = document.getElementById("model");
       select.innerHTML = "";
 
-      ELECTRONHUB_MODELS.forEach((group) => {
+      const groups = new Map();
+
+      MODEL_CATALOG.forEach((model) => {
+        const label = getProviderGroupLabel(model);
+        if (!groups.has(label)) {
+          groups.set(label, []);
+        }
+
+        groups.get(label).push(model);
+      });
+
+      for (const [label, models] of groups.entries()) {
         const optgroup = document.createElement("optgroup");
-        optgroup.label = group.provider;
+        optgroup.label = label;
 
-        group.models.forEach(([name, id]) => {
+        models.forEach((model) => {
           const option = document.createElement("option");
-          option.value = id;
-          option.textContent = `${name} — ${id}`;
+          option.value = model.id;
+          option.textContent = `${model.name} — ${model.id} — ${getEndpointBadge(model)}`;
 
-          if (id === "sdxl") {
+          if (model.id === "sdxl") {
             option.selected = true;
           }
 
@@ -363,21 +489,49 @@
         });
 
         select.appendChild(optgroup);
-      });
+      }
+
+      updateModelHint();
     }
 
-    populateModelDropdown();
+    function updateModelHint() {
+      const selectedModelId = document.getElementById("model").value;
+      const model = getModelById(selectedModelId);
+      const hint = document.getElementById("modelHint");
+
+      if (!model) {
+        hint.textContent = "";
+        updateReferenceVisibility();
+        return;
+      }
+
+      const endpoints = model.endpoints.join(", ");
+      const supportsEdit = model.endpoints.includes(EDIT_PATH);
+
+      hint.textContent = supportsEdit
+        ? `${model.id} | endpoints: ${endpoints}. This model supports reference-image editing.`
+        : `${model.id} | endpoints: ${endpoints}. This model is text-to-image only.`;
+
+      updateReferenceVisibility();
+    }
+
+    function updateReferenceVisibility() {
+      const selectedModelId = document.getElementById("model").value;
+      const supportsEdit = modelSupportsEndpoint(selectedModelId, EDIT_PATH);
+
+      const section = document.getElementById("referenceSection");
+      const input = document.getElementById("referenceImage");
+      const preview = document.querySelector("#referenceSection .preview");
+
+      section.style.display = supportsEdit ? "block" : "none";
+
+      if (!supportsEdit && input && preview) {
+        resetPreview(input, preview);
+      }
+    }
 
     function getSelectedSize() {
       return document.getElementById("image-ratios").value;
-    }
-
-    function getEditModelOrFallback(selectedModel) {
-      if (EDIT_CAPABLE_MODELS.has(selectedModel)) {
-        return selectedModel;
-      }
-
-      return "flux-1-kontext-pro";
     }
 
     function resetPreview(input, preview) {
@@ -440,8 +594,6 @@
       });
     }
 
-    setupFilePreview();
-
     async function saveApiKeyCredential() {
       try {
         if (!window.PasswordCredential || !navigator.credentials) return;
@@ -462,6 +614,12 @@
     }
 
     function getReferenceFile() {
+      const selectedModelId = document.getElementById("model").value;
+
+      if (!modelSupportsEndpoint(selectedModelId, EDIT_PATH)) {
+        return null;
+      }
+
       const input = document.getElementById("referenceImage");
       return input.files && input.files[0] ? input.files[0] : null;
     }
@@ -557,6 +715,10 @@
     }
 
     async function generateWithoutReference({ apiKey, prompt, model, size }) {
+      if (!modelSupportsEndpoint(model, GENERATION_PATH)) {
+        throw new Error(`Selected model does not support ${GENERATION_PATH}: ${model}`);
+      }
+
       const payload = {
         model,
         prompt,
@@ -568,16 +730,17 @@
 
       document.getElementById("trace").textContent = JSON.stringify(
         {
-          endpoint: ELECTRONHUB_GENERATION_ENDPOINT,
+          endpoint: GENERATION_ENDPOINT,
           method: "POST",
           mode: "text-to-image",
+          selectedModel: model,
           payload
         },
         null,
         2
       );
 
-      const response = await fetch(ELECTRONHUB_GENERATION_ENDPOINT, {
+      return fetch(GENERATION_ENDPOINT, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -585,8 +748,6 @@
         },
         body: JSON.stringify(payload)
       });
-
-      return response;
     }
 
     async function generateWithSingleReference({
@@ -596,24 +757,24 @@
       selectedModel,
       size
     }) {
-      const editModel = getEditModelOrFallback(selectedModel);
+      if (!modelSupportsEndpoint(selectedModel, EDIT_PATH)) {
+        throw new Error(`Selected model does not support ${EDIT_PATH}: ${selectedModel}`);
+      }
 
       const form = new FormData();
       form.append("image", imageFile);
       form.append("prompt", prompt);
-      form.append("model", editModel);
+      form.append("model", selectedModel);
       form.append("n", "1");
       form.append("size", size);
       form.append("response_format", "url");
 
       document.getElementById("trace").textContent = JSON.stringify(
         {
-          endpoint: ELECTRONHUB_EDIT_ENDPOINT,
+          endpoint: EDIT_ENDPOINT,
           method: "POST",
           mode: "image-edit",
           selectedModel,
-          actualEditModel: editModel,
-          usedFallback: selectedModel !== editModel,
           form: {
             image: {
               name: imageFile.name,
@@ -621,7 +782,7 @@
               size: imageFile.size
             },
             prompt,
-            model: editModel,
+            model: selectedModel,
             n: "1",
             size,
             response_format: "url"
@@ -631,15 +792,13 @@
         2
       );
 
-      const response = await fetch(ELECTRONHUB_EDIT_ENDPOINT, {
+      return fetch(EDIT_ENDPOINT, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`
         },
         body: form
       });
-
-      return response;
     }
 
     async function generateImage() {
@@ -713,6 +872,10 @@
       }
     }
 
+    populateModelDropdown();
+    setupFilePreview();
+
+    document.getElementById("model").addEventListener("change", updateModelHint);
     document.getElementById("generateBtn").addEventListener("click", generateImage);
   </script>
 </body>
