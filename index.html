@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ElectronHub Image Generation Tool</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 100%;
+      max-width: 430px;
+      margin: 20px auto;
+      padding: 16px;
+      background: #111;
+      color: #eee;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    textarea,
+    input,
+    select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #444;
+      background: #1e1e1e;
+      color: white;
+      box-sizing: border-box;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    textarea {
+      min-height: 200px;
+      resize: vertical;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #4f46e5;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #6366f1;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .upload-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .upload-row input[type="file"] {
+      flex: 1;
+      padding: 8px;
+      margin-bottom: 0;
+    }
+
+    .preview {
+      position: relative;
+      width: 70px;
+      height: 70px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #222;
+      border: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .placeholder {
+      font-size: 11px;
+      color: #777;
+      text-align: center;
+      padding: 5px;
+    }
+
+    .preview-remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin: 0;
+      z-index: 2;
+    }
+
+    .preview-remove-btn:hover {
+      background: rgba(220, 38, 38, 0.95);
+    }
+
+    .hint {
+      color: #aaa;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: -10px;
+      margin-bottom: 16px;
+    }
+
+    .job-box {
+      margin-top: 20px;
+      padding: 14px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .generated-images {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .image-card {
+      position: relative;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .image-card img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #333;
+      margin-top: 10px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      z-index: 2;
+      margin-top: 0;
+    }
+
+    .close-btn:hover {
+      background: rgba(220, 38, 38, 0.9);
+    }
+
+    .download-btn {
+      margin-top: 10px;
+      background: #16a34a;
+    }
+
+    .download-btn:hover {
+      background: #22c55e;
+    }
+
+    pre {
+      background: #1e1e1e;
+      padding: 14px;
+      border-radius: 10px;
+      overflow-x: auto;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+
+    code {
+      color: #c4b5fd;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>ElectronHub Image Tool</h1>
+
+  <label>API Key</label>
+  <input
+    type="password"
+    id="loginPassword"
+    autocomplete="current-password"
+    placeholder="Enter ElectronHub API Key"
+  />
+
+  <label>Model</label>
+  <select id="model"></select>
+
+  <label for="image-ratios">Select Image Size</label>
+  <select name="image-ratios" id="image-ratios">
+    <option value="1024x1024" selected>1:1 - 1024x1024</option>
+    <option value="1024x768">4:3 - 1024x768</option>
+    <option value="768x1024">3:4 - 768x1024</option>
+    <option value="1024x576">16:9 - 1024x576</option>
+    <option value="576x1024">9:16 - 576x1024</option>
+  </select>
+
+  <label>Prompt</label>
+  <textarea id="prompt" placeholder="Describe the image you want generated or edited..."></textarea>
+
+  <label>Optional Reference Image</label>
+  <div class="hint">
+    Leave empty for text-to-image generation. Upload one image for image editing.
+    Edit-capable selected models are allowed. If the selected model is not edit-capable,
+    the tool falls back to <code>flux-1-kontext-pro</code>.
+  </div>
+
+  <div id="uploadList">
+    <div class="upload-row">
+      <input id="referenceImage" type="file" accept="image/*" />
+      <div class="preview">
+        <button class="preview-remove-btn" type="button" aria-label="Remove reference image">×</button>
+        <div class="placeholder">Preview</div>
+      </div>
+    </div>
+  </div>
+
+  <button id="generateBtn">Generate</button>
+
+  <div class="job-box">
+    <strong>Request:</strong> <span id="jobId">not started</span>
+    <br /><br />
+    <strong>Status:</strong> <span id="jobStatus">waiting for input</span>
+  </div>
+
+  <div class="generated-images" id="generatedImages"></div>
+
+  <pre id="output">{
+  "status": "waiting for input"
+}</pre>
+
+  <pre id="trace"></pre>
+
+  <script>
+    const ELECTRONHUB_GENERATION_ENDPOINT =
+      "https://api.electronhub.ai/v1/images/generations";
+
+    const ELECTRONHUB_EDIT_ENDPOINT =
+      "https://api.electronhub.ai/v1/images/edits";
+
+    const ELECTRONHUB_MODELS = [
+      {
+        provider: "Stability / SDXL",
+        models: [
+          ["Stable Diffusion XL", "sdxl"],
+          ["Plant Milk Model Suite Walnut", "sdxl-plantmilkmodelsuite-walnut"],
+          ["wai Illustrious v1.40", "sdxl-wai-illustrious-v140"],
+          ["One For All Anime Illustrious", "sdxl-oneforallanimew-il"]
+        ]
+      },
+      {
+        provider: "BlackForestLabs / FLUX",
+        models: [
+          ["FLUX.2 klein 9B — generation/edit", "flux-2-klein-9b"],
+          ["Flux Lineart", "flux-lineart"]
+        ]
+      },
+      {
+        provider: "BlackForestLabs / Image Editing",
+        models: [
+          ["FLUX.1 Kontext dev — edit", "flux-1-kontext-dev"],
+          ["FLUX.1 Kontext pro — edit", "flux-1-kontext-pro"],
+          ["FLUX.1 Kontext max — edit", "flux-1-kontext-max"]
+        ]
+      },
+      {
+        provider: "Alibaba",
+        models: [
+          ["Z-Image Turbo", "z-image-turbo"],
+          ["Qwen Image", "qwen-image"],
+          ["Wan 2.2 Image", "wan-2.2-image"]
+        ]
+      },
+      {
+        provider: "OpenAI",
+        models: [
+          ["GPT Image 1 — generation/edit", "gpt-image-1"]
+        ]
+      }
+    ];
+
+    const EDIT_CAPABLE_MODELS = new Set([
+      "flux-1-kontext-dev",
+      "flux-1-kontext-pro",
+      "flux-1-kontext-max",
+      "flux-2-klein-9b",
+      "gpt-image-1"
+    ]);
+
+    function populateModelDropdown() {
+      const select = document.getElementById("model");
+      select.innerHTML = "";
+
+      ELECTRONHUB_MODELS.forEach((group) => {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group.provider;
+
+        group.models.forEach(([name, id]) => {
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = `${name} — ${id}`;
+
+          if (id === "sdxl") {
+            option.selected = true;
+          }
+
+          optgroup.appendChild(option);
+        });
+
+        select.appendChild(optgroup);
+      });
+    }
+
+    populateModelDropdown();
+
+    function getSelectedSize() {
+      return document.getElementById("image-ratios").value;
+    }
+
+    function getEditModelOrFallback(selectedModel) {
+      if (EDIT_CAPABLE_MODELS.has(selectedModel)) {
+        return selectedModel;
+      }
+
+      return "flux-1-kontext-pro";
+    }
+
+    function resetPreview(input, preview) {
+      input.value = "";
+
+      preview.innerHTML =
+        '<button class="preview-remove-btn" type="button" aria-label="Remove reference image">×</button><div class="placeholder">Preview</div>';
+
+      const newRemoveBtn = preview.querySelector(".preview-remove-btn");
+      newRemoveBtn.style.display = "none";
+
+      newRemoveBtn.addEventListener("click", () => {
+        resetPreview(input, preview);
+      });
+    }
+
+    function setupFilePreview() {
+      document.querySelectorAll(".upload-row").forEach((row) => {
+        const input = row.querySelector("input[type='file']");
+        const preview = row.querySelector(".preview");
+        const removeBtn = row.querySelector(".preview-remove-btn");
+
+        removeBtn.addEventListener("click", () => {
+          resetPreview(input, preview);
+        });
+
+        input.addEventListener("change", () => {
+          const file = input.files[0];
+
+          if (!file) {
+            resetPreview(input, preview);
+            return;
+          }
+
+          const reader = new FileReader();
+
+          reader.onload = (e) => {
+            preview.innerHTML = "";
+
+            const newRemoveBtn = document.createElement("button");
+            newRemoveBtn.className = "preview-remove-btn";
+            newRemoveBtn.type = "button";
+            newRemoveBtn.setAttribute("aria-label", "Remove reference image");
+            newRemoveBtn.textContent = "×";
+            newRemoveBtn.style.display = "flex";
+
+            newRemoveBtn.addEventListener("click", () => {
+              resetPreview(input, preview);
+            });
+
+            const img = document.createElement("img");
+            img.src = e.target.result;
+
+            preview.appendChild(newRemoveBtn);
+            preview.appendChild(img);
+          };
+
+          reader.readAsDataURL(file);
+        });
+      });
+    }
+
+    setupFilePreview();
+
+    async function saveApiKeyCredential() {
+      try {
+        if (!window.PasswordCredential || !navigator.credentials) return;
+
+        const password = document.getElementById("loginPassword").value.trim();
+        if (!password) return;
+
+        const cred = new PasswordCredential({
+          id: "api-key",
+          password,
+          name: "API Key"
+        });
+
+        await navigator.credentials.store(cred);
+      } catch (e) {
+        console.log("Credential save skipped");
+      }
+    }
+
+    function getReferenceFile() {
+      const input = document.getElementById("referenceImage");
+      return input.files && input.files[0] ? input.files[0] : null;
+    }
+
+    async function readJsonSafely(response) {
+      const text = await response.text();
+
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return {
+          error: "Response was not valid JSON",
+          status: response.status,
+          body: text
+        };
+      }
+    }
+
+    function getImageSrc(item) {
+      if (item.b64_json) {
+        return `data:image/png;base64,${item.b64_json}`;
+      }
+
+      if (item.url) {
+        return item.url;
+      }
+
+      return null;
+    }
+
+    function renderGeneratedImages(data) {
+      const container = document.getElementById("generatedImages");
+      container.innerHTML = "";
+
+      const items = data?.data || [];
+
+      if (!items.length) {
+        document.getElementById("jobStatus").textContent = "no images returned";
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const card = document.createElement("div");
+        card.className = "image-card";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "close-btn";
+        closeBtn.type = "button";
+        closeBtn.setAttribute("aria-label", "Remove image");
+        closeBtn.textContent = "×";
+        closeBtn.onclick = () => card.remove();
+        card.appendChild(closeBtn);
+
+        const title = document.createElement("div");
+        title.textContent = `Generated Image ${index + 1}`;
+        title.style.fontWeight = "bold";
+        card.appendChild(title);
+
+        if (item.revised_prompt) {
+          const revisedPrompt = document.createElement("div");
+          revisedPrompt.style.fontSize = "12px";
+          revisedPrompt.style.color = "#aaa";
+          revisedPrompt.style.marginTop = "8px";
+          revisedPrompt.textContent = `Revised prompt: ${item.revised_prompt}`;
+          card.appendChild(revisedPrompt);
+        }
+
+        const imageSrc = getImageSrc(item);
+
+        if (imageSrc) {
+          const img = document.createElement("img");
+          img.src = imageSrc;
+          card.appendChild(img);
+
+          const downloadBtn = document.createElement("button");
+          downloadBtn.className = "download-btn";
+          downloadBtn.textContent = "Download";
+
+          downloadBtn.onclick = () => {
+            const a = document.createElement("a");
+            a.href = imageSrc;
+            a.download = `electronhub-image-${Date.now()}-${index + 1}.png`;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.click();
+          };
+
+          card.appendChild(downloadBtn);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    async function generateWithoutReference({ apiKey, prompt, model, size }) {
+      const payload = {
+        model,
+        prompt,
+        n: 1,
+        size,
+        response_format: "url",
+        public: false
+      };
+
+      document.getElementById("trace").textContent = JSON.stringify(
+        {
+          endpoint: ELECTRONHUB_GENERATION_ENDPOINT,
+          method: "POST",
+          mode: "text-to-image",
+          payload
+        },
+        null,
+        2
+      );
+
+      const response = await fetch(ELECTRONHUB_GENERATION_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      return response;
+    }
+
+    async function generateWithSingleReference({
+      apiKey,
+      prompt,
+      imageFile,
+      selectedModel,
+      size
+    }) {
+      const editModel = getEditModelOrFallback(selectedModel);
+
+      const form = new FormData();
+      form.append("image", imageFile);
+      form.append("prompt", prompt);
+      form.append("model", editModel);
+      form.append("n", "1");
+      form.append("size", size);
+      form.append("response_format", "url");
+
+      document.getElementById("trace").textContent = JSON.stringify(
+        {
+          endpoint: ELECTRONHUB_EDIT_ENDPOINT,
+          method: "POST",
+          mode: "image-edit",
+          selectedModel,
+          actualEditModel: editModel,
+          usedFallback: selectedModel !== editModel,
+          form: {
+            image: {
+              name: imageFile.name,
+              type: imageFile.type,
+              size: imageFile.size
+            },
+            prompt,
+            model: editModel,
+            n: "1",
+            size,
+            response_format: "url"
+          }
+        },
+        null,
+        2
+      );
+
+      const response = await fetch(ELECTRONHUB_EDIT_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: form
+      });
+
+      return response;
+    }
+
+    async function generateImage() {
+      const prompt = document.getElementById("prompt").value.trim();
+      const apiKey = document.getElementById("loginPassword").value.trim();
+      const selectedModel = document.getElementById("model").value;
+      const size = getSelectedSize();
+      const referenceFile = getReferenceFile();
+      const generateBtn = document.getElementById("generateBtn");
+
+      if (!prompt || !apiKey) {
+        alert("Missing prompt or API key");
+        return;
+      }
+
+      await saveApiKeyCredential();
+
+      document.getElementById("output").textContent = "Sending request...";
+      document.getElementById("jobId").textContent = referenceFile
+        ? "image edit request"
+        : "image generation request";
+      document.getElementById("jobStatus").textContent = "generating...";
+      document.getElementById("generatedImages").innerHTML = "";
+      document.title = "Generating image...";
+
+      generateBtn.disabled = true;
+      generateBtn.textContent = "Generating...";
+
+      try {
+        let response;
+
+        if (referenceFile) {
+          response = await generateWithSingleReference({
+            apiKey,
+            prompt,
+            imageFile: referenceFile,
+            selectedModel,
+            size
+          });
+        } else {
+          response = await generateWithoutReference({
+            apiKey,
+            prompt,
+            model: selectedModel,
+            size
+          });
+        }
+
+        const data = await readJsonSafely(response);
+
+        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+
+        if (!response.ok) {
+          document.getElementById("jobStatus").textContent = `error ${response.status}`;
+          document.title = "Generation error";
+          return;
+        }
+
+        document.getElementById("jobStatus").textContent = "completed";
+        document.title = "Done";
+
+        renderGeneratedImages(data);
+      } catch (err) {
+        console.error(err);
+        document.getElementById("output").textContent = err.toString();
+        document.getElementById("jobStatus").textContent = "request error";
+        document.title = "Request error";
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Generate";
+      }
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", generateImage);
+  </script>
+</body>
+</html>
